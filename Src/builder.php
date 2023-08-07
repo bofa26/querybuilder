@@ -1,4 +1,4 @@
- <?php 
+<?php 
 
 
 /**
@@ -7,6 +7,12 @@
 class Builder
 {
 
+	/**
+	 * 
+	 * 	@var array
+	 * 
+	 */
+	public array $body = array();
 	/**
 	 * 
 	 * 	@var array
@@ -33,10 +39,22 @@ class Builder
 	public string $table = '';
 	/**
 	 * 
+	 * 	@var string FOR|OR Clause
+	 * 
+	 */
+	public string $condition = '';
+	/**
+	 * 
+	 * 	@var string
+	 * 
+	 */
+	public string $query_type = '';
+	/**
+	 * 
 	 * 	@var array
 	 * 
 	 */
-	public array $alias = array();
+	public array $alias = array();	
 	/**
 	 * 
 	 * 	@var array
@@ -50,23 +68,37 @@ class Builder
 	 */
 	public ?string $having = null;
 
-	public function select($columns = [], $from = "")
+	public function select($from = "", $columns=[])
 	{
+		if ($from === "") {
+			throw new Exception("Error Processing Request", 1);
+		}
+
+		$this->query_type = "select";
+
 		if (empty($columns)) {
 			$this->select[] = '*';
 		}
 
 		foreach ($columns as $column) {
+			if ($column == "") {
+				continue;
+			}
+			$column = trim($column);
 			$this->select[] = $column;
 		}
 
 		$this->addTable($from);
+		return $this;
 	}
 
-	public function where($key="", $operator="", $value="")
+	public function where($key="", $operator="", $value="", $condition = "AND")
 	{
+		$args = func_get_args();
+		$this->condition = (count($args) === 2) ? $args[1] : $condition;
+
 		if (is_string($key)) {
-			if (! in_array($operator, ["<>","<",">","="])) {
+			if (! in_array($operator, ["<>","<",">","=","!="])) {
 				throw new Exception("Error Processing Request", 1);
 			}
 			$this->where[] = [$key, $operator, $value];
@@ -95,11 +127,13 @@ class Builder
 				}
 			}
 		}
+		return $this;
 	}
 
 	public function addTable($table='')
 	{
 		$this->table = $table;
+		return $this;
 	}
 
 	public function groupby(array $groups, $having = null)
@@ -126,5 +160,52 @@ class Builder
 	public function where_not_in($where_not_in = [])
 	{
 		$this->where_in($where_not_in);
+	}
+
+	public function compile_select()
+	{
+		$query = "SELECT ";
+		$query .= implode(',', $this->select) . " FROM ".$this->getTable();
+
+		if ($this->where) {
+			$query .= " WHERE ";
+			if (count($this->where) === 1) {
+				$key = $this->where[0][0];
+				$operator = $this->where[0][1];
+				$val = $this->where[0][2];
+				$this->body[$key] = $val;
+
+				$query .= $key.$operator.':'.$key;
+			}
+
+			if (count($this->where) === 2) {
+				$key = $this->where[0][0];
+				$operator = $this->where[0][1];
+				$val = $this->where[0][2];
+				$seckey = $this->where[1][0];
+				$secoperator = $this->where[1][1];
+				$secval = $this->where[1][2];
+				$this->body[$key] = $val;
+				$this->body[$seckey] = $secval;
+
+				$query .= $key.$operator.':'.$key." ".$this->condition." ".$seckey.$secoperator.':'.$seckey;
+			}
+		}
+		return $query;
+	}
+
+	public function get()
+	{
+		//$db  = new Database();
+		if ($this->query_type === 'select') {
+			$query = $this->compile_select();
+			//$db->select($query, $this->body);
+			echo $query;
+		}
+	}
+
+	public function getTable()
+	{
+		return $this->table;
 	}
 }
