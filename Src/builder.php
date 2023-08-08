@@ -68,6 +68,33 @@ class Builder
 	 */
 	public ?string $having = null;
 
+	public function update($table="", $key="", $value="")
+	{
+		if (empty($table)) {
+			throw new Exception("Error Processing Request", 1);
+		}
+
+		if (empty($key)) {
+			throw new Exception("Error Processing Request", 1);
+		}
+
+		$this->addTable($table);
+		if (is_string($key)) {
+			$key = array($key => $value);
+		}
+
+		if (is_array($key)) {
+			foreach ($key as $k => $v) {
+				$v = trim($v);
+				if ($v == "") {
+					continue;
+				}
+				$this->set[$k] = $v;
+			}
+		}
+		return $this;
+	}
+
 	public function select($from = "", $columns=[])
 	{
 		if ($from === "") {
@@ -97,8 +124,10 @@ class Builder
 		$args = func_get_args();
 		$this->condition = (count($args) === 2) ? $args[1] : $condition;
 
+		if (! in_array($this->condition, ["AND", "OR"])) throw new Exception("Error Processing Request", 1);
+
 		if (is_string($key)) {
-			if (! in_array($operator, ["<>","<",">","=","!="])) {
+			if (! in_array($operator, ["<>","<",">","=","!=","<=",">="])) {
 				throw new Exception("Error Processing Request", 1);
 			}
 			$this->where[] = [$key, $operator, $value];
